@@ -66,6 +66,8 @@ void SplitterDestinationData::Update(const InParameter& params,
     }
 
     in_use = params.in_use;
+    if (!in_use)
+        biquad_initialized.fill(false);
 }
 
 void SplitterDestinationData::MarkAsNeedToUpdateInternalState() {
@@ -95,6 +97,16 @@ SplitterDestinationData::GetBiquadFilters() {
 std::span<const SplitterDestinationData::BiquadFilterParameter2>
 SplitterDestinationData::GetBiquadFilters() const {
     return biquad_filters;
+}
+
+bool SplitterDestinationData::IsBiquadInitialized(const u32 index) const {
+    return index < biquad_initialized.size() && biquad_initialized[index];
+}
+
+void SplitterDestinationData::SetBiquadInitialized(const u32 index,
+                                                   const bool initialized) {
+    if (index < biquad_initialized.size())
+        biquad_initialized[index] = initialized;
 }
 
 } // namespace AudioCore::AudioRenderer

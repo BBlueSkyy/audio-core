@@ -140,6 +140,9 @@ public:
     std::span<BiquadFilterParameter2> GetBiquadFilters();
     std::span<const BiquadFilterParameter2> GetBiquadFilters() const;
 
+    bool IsBiquadInitialized(u32 index) const;
+    void SetBiquadInitialized(u32 index, bool initialized);
+
     /**
      * Mark this destination as needing its volumes updated.
      */
@@ -175,6 +178,8 @@ private:
     std::array<f32, MaxMixBuffers> prev_mix_volumes{0.0f};
     /// REV12+ splitter biquad parameters, normalized to float coefficients
     std::array<BiquadFilterParameter2, MaxBiquadFilters> biquad_filters{};
+    /// Persistent DSP-state validity for each splitter filter.
+    std::array<bool, MaxBiquadFilters> biquad_initialized{};
     /// Next destination in the mix chain
     SplitterDestinationData* next{};
     /// Is this destiantion in use?

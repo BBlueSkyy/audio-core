@@ -13,6 +13,7 @@
 #include <audio_core/renderer/sink/circular_buffer_sink_info.h>
 #include <audio_core/renderer/sink/device_sink_info.h>
 #include <audio_core/renderer/sink/sink_info_base.h>
+#include <audio_core/renderer/splitter/splitter_context.h>
 #include <audio_core/renderer/voice/voice_info.h>
 #include <audio_core/renderer/voice/voice_state.h>
 
@@ -272,6 +273,70 @@ void CommandBuffer::GenerateBiquadFilterCommand(const s32 node_id, EffectInfoBas
     cmd.use_float_processing = use_float_processing;
 
     GenerateEnd<BiquadFilterCommand>(cmd);
+}
+
+void CommandBuffer::GenerateBiquadFilterAndMixCommand(
+    const s32 node_id, const s16 input_index, const s16 output_index,
+    const SplitterDestinationData::BiquadFilterParameter2& biquad,
+    std::span<VoiceState::BiquadFilterState> states, const u32 filter_index,
+    const f32 volume0, const f32 volume1, const bool needs_init,
+    const bool has_volume_ramp, const bool is_first_mix_buffer) {
+    if (filter_index >= MaxBiquadFilters ||
+        states.size() < SplitterContext::BiquadStatesPerDestination)
+        return;
+
+    const size_t state_index{static_cast<size_t>(filter_index) * 2};
+    auto& cmd{
+        GenerateStart<BiquadFilterAndMixCommand, CommandId::BiquadFilterAndMix>(node_id)};
+
+    cmd.input = input_index;
+    cmd.output = output_index;
+    cmd.biquad = biquad;
+    cmd.state = memory_pool->Translate(
+        CpuAddr(&states[state_index]), sizeof(VoiceState::BiquadFilterState));
+    cmd.previous_state = memory_pool->Translate(
+        CpuAddr(&states[state_index + 1]), sizeof(VoiceState::BiquadFilterState));
+    cmd.volume0 = volume0;
+    cmd.volume1 = volume1;
+    cmd.needs_init = needs_init;
+    cmd.has_volume_ramp = has_volume_ramp;
+    cmd.is_first_mix_buffer = is_first_mix_buffer;
+
+    GenerateEnd<BiquadFilterAndMixCommand>(cmd);
+}
+
+void CommandBuffer::GenerateMultiTapBiquadFilterAndMixCommand(
+    const s32 node_id, const s16 input_index, const s16 output_index,
+    std::span<const SplitterDestinationData::BiquadFilterParameter2> biquads,
+    std::span<VoiceState::BiquadFilterState> states,
+    const f32 volume0, const f32 volume1,
+    const std::array<bool, MaxBiquadFilters> needs_init,
+    const bool has_volume_ramp, const bool is_first_mix_buffer) {
+    if (biquads.size() < MaxBiquadFilters ||
+        states.size() < SplitterContext::BiquadStatesPerDestination)
+        return;
+
+    auto& cmd{GenerateStart<MultiTapBiquadFilterAndMixCommand,
+                            CommandId::MultiTapBiquadFilterAndMix>(node_id)};
+
+    cmd.input = input_index;
+    cmd.output = output_index;
+    cmd.volume0 = volume0;
+    cmd.volume1 = volume1;
+    cmd.needs_init = needs_init;
+    cmd.has_volume_ramp = has_volume_ramp;
+    cmd.is_first_mix_buffer = is_first_mix_buffer;
+
+    for (u32 filter{}; filter < MaxBiquadFilters; filter++) {
+        const size_t state_index{static_cast<size_t>(filter) * 2};
+        cmd.biquads[filter] = biquads[filter];
+        cmd.states[filter] = memory_pool->Translate(
+            CpuAddr(&states[state_index]), sizeof(VoiceState::BiquadFilterState));
+        cmd.previous_states[filter] = memory_pool->Translate(
+            CpuAddr(&states[state_index + 1]), sizeof(VoiceState::BiquadFilterState));
+    }
+
+    GenerateEnd<MultiTapBiquadFilterAndMixCommand>(cmd);
 }
 
 void CommandBuffer::GenerateMixCommand(const s32 node_id, const s16 input_index,

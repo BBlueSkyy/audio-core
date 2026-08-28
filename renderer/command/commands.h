@@ -8,6 +8,7 @@
 #include <audio_core/renderer/command/data_source/pcm_int16.h>
 #include <audio_core/renderer/command/effect/aux_.h>
 #include <audio_core/renderer/command/effect/biquad_filter.h>
+#include <audio_core/renderer/command/effect/biquad_filter_and_mix.h>
 #include <audio_core/renderer/command/effect/capture.h>
 #include <audio_core/renderer/command/effect/compressor.h>
 #include <audio_core/renderer/command/effect/delay.h>

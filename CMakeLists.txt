@@ -60,6 +60,8 @@ add_library(audio_core STATIC
     renderer/command/effect/aux_.h
     renderer/command/effect/biquad_filter.cpp
     renderer/command/effect/biquad_filter.h
+    renderer/command/effect/biquad_filter_and_mix.cpp
+    renderer/command/effect/biquad_filter_and_mix.h
     renderer/command/effect/capture.cpp
     renderer/command/effect/capture.h
     renderer/command/effect/compressor.cpp

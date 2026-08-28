@@ -44,6 +44,17 @@ public:
     virtual u32 Estimate(const MultiTapBiquadFilterCommand& command) const = 0;
     virtual u32 Estimate(const CaptureCommand& command) const = 0;
     virtual u32 Estimate(const CompressorCommand& command) const = 0;
+
+    // REV12+ fused splitter commands are not present in the old timing tables.
+    // Keep them part of the estimator interface without inventing hardware constants.
+    virtual u32 Estimate(
+        [[maybe_unused]] const BiquadFilterAndMixCommand& command) const {
+        return 0;
+    }
+    virtual u32 Estimate(
+        [[maybe_unused]] const MultiTapBiquadFilterAndMixCommand& command) const {
+        return 0;
+    }
 };
 
 class CommandProcessingTimeEstimatorVersion1 final : public ICommandProcessingTimeEstimator {

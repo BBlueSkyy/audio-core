@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <span>
 
 #include <audio_core/renderer/command/commands.h>
@@ -77,8 +78,12 @@ public:
         // Final mix
         size += sizeof(DepopForMixBuffersCommand) + sizeof(VolumeCommand) * MaxMixBuffers;
 
-        // Splitters
-        size += params.splitter_destinations * sizeof(MixRampCommand) * MaxMixBuffers;
+        // Splitters. REV12+ can use fused filter+mix commands, which are larger than MixRamp.
+        const u64 splitter_command_size{
+            std::max(sizeof(MixRampCommand),
+                     std::max(sizeof(BiquadFilterAndMixCommand),
+                              sizeof(MultiTapBiquadFilterAndMixCommand)))};
+        size += params.splitter_destinations * splitter_command_size * MaxMixBuffers;
 
         // Sinks
         size +=

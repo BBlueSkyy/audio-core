@@ -188,6 +188,8 @@ u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
                 for (u32 filter = 0; filter < MaxBiquadFilters; filter++) {
                     const auto& src{data_header->biquad_filters[filter]};
                     auto& dst{filters[filter]};
+                    if (dst.enabled != src.enabled)
+                        destination.SetBiquadInitialized(filter, false);
                     dst.enabled = src.enabled;
                     for (u32 n = 0; n < 3; n++) {
                         dst.numerator[n] = static_cast<f32>(src.b[n]) * q14_scale;
@@ -219,6 +221,8 @@ u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
             destination.Update(common, splitter_prev_volume_reset_supported);
             auto filters{destination.GetBiquadFilters()};
             for (u32 filter = 0; filter < MaxBiquadFilters; filter++) {
+                if (filters[filter].enabled != data_header->biquad_filters[filter].enabled)
+                    destination.SetBiquadInitialized(filter, false);
                 filters[filter] = data_header->biquad_filters[filter];
             }
         }

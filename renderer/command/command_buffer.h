@@ -164,6 +164,21 @@ public:
     void GenerateBiquadFilterCommand(s32 node_id, EffectInfoBase& effect_info, s16 buffer_offset,
                                      s8 channel, bool needs_init, bool use_float_processing);
 
+    void GenerateBiquadFilterAndMixCommand(
+        s32 node_id, s16 input_index, s16 output_index,
+        const SplitterDestinationData::BiquadFilterParameter2& biquad,
+        std::span<VoiceState::BiquadFilterState> states, u32 filter_index,
+        f32 volume0, f32 volume1, bool needs_init, bool has_volume_ramp,
+        bool is_first_mix_buffer);
+
+    void GenerateMultiTapBiquadFilterAndMixCommand(
+        s32 node_id, s16 input_index, s16 output_index,
+        std::span<const SplitterDestinationData::BiquadFilterParameter2> biquads,
+        std::span<VoiceState::BiquadFilterState> states,
+        f32 volume0, f32 volume1,
+        std::array<bool, MaxBiquadFilters> needs_init, bool has_volume_ramp,
+        bool is_first_mix_buffer);
+
     /**
      * Generate a mix command, adding it to the command list.
      *
