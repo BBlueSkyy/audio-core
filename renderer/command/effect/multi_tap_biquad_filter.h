@@ -46,14 +46,17 @@ struct MultiTapBiquadFilterCommand : ICommand {
     s16 input;
     /// Output mix buffer index
     s16 output;
-    /// Biquad parameters
+    /// Legacy fixed-point biquad parameters
     std::array<VoiceInfo::BiquadFilterParameter, MaxBiquadFilters> biquads;
+    /// Native float coefficients used by REV15+
+    std::array<VoiceInfo::BiquadFilterParameter2, MaxBiquadFilters> biquads_float;
     /// Biquad states, updated each call
     std::array<CpuAddr, MaxBiquadFilters> states;
     /// If each biquad needs initialisation
     std::array<bool, MaxBiquadFilters> needs_init;
     /// Number of active biquads
     u8 filter_tap_count;
+    bool use_float_coefficients;
 };
 
 } // namespace AudioCore::AudioRenderer

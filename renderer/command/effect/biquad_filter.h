@@ -47,14 +47,18 @@ struct BiquadFilterCommand : ICommand {
     s16 input;
     /// Output mix buffer index
     s16 output;
-    /// Input parameters for biquad
+    /// Input parameters for legacy fixed-point biquad
     VoiceInfo::BiquadFilterParameter biquad;
+    /// Native float parameters used by REV15+
+    VoiceInfo::BiquadFilterParameter2 biquad_float;
     /// Biquad state, updated each call
     CpuAddr state;
     /// If true, reset the state
     bool needs_init;
     /// If true, use float processing rather than int
     bool use_float_processing;
+    /// If true, use native REV15+ float coefficients
+    bool use_float_coefficients;
 };
 
 /**
@@ -70,5 +74,9 @@ struct BiquadFilterCommand : ICommand {
 void ApplyBiquadFilterFloat(std::span<s32> output, std::span<const s32> input,
                             std::array<s16, 3>& b, std::array<s16, 2>& a,
                             VoiceState::BiquadFilterState& state, const u32 sample_count);
+
+void ApplyBiquadFilterFloat2(std::span<s32> output, std::span<const s32> input,
+                             std::array<f32, 3>& b, std::array<f32, 2>& a,
+                             VoiceState::BiquadFilterState& state, const u32 sample_count);
 
 } // namespace AudioCore::AudioRenderer

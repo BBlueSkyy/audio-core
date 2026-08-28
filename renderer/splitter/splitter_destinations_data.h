@@ -16,15 +16,61 @@ namespace AudioCore::AudioRenderer {
  */
 class SplitterDestinationData {
 public:
+    struct BiquadFilterParameterLegacy {
+        /* 0x00 */ bool enabled;
+        /* 0x02 */ std::array<s16, 3> b;
+        /* 0x08 */ std::array<s16, 2> a;
+    };
+    static_assert(sizeof(BiquadFilterParameterLegacy) == 0xC,
+                  "SplitterDestinationData::BiquadFilterParameterLegacy has the wrong size!");
+
+    struct BiquadFilterParameter2 {
+        /* 0x00 */ bool enabled;
+        /* 0x01 */ u8 reserved1;
+        /* 0x02 */ u8 reserved2;
+        /* 0x03 */ u8 reserved3;
+        /* 0x04 */ std::array<f32, 3> numerator;
+        /* 0x10 */ std::array<f32, 2> denominator;
+    };
+    static_assert(sizeof(BiquadFilterParameter2) == 0x18,
+                  "SplitterDestinationData::BiquadFilterParameter2 has the wrong size!");
+
     struct InParameter {
         /* 0x00 */ u32 magic; // 'SNDD'
         /* 0x04 */ s32 id;
         /* 0x08 */ std::array<f32, MaxMixBuffers> mix_volumes;
         /* 0x68 */ u32 mix_id;
         /* 0x6C */ bool in_use;
+        /* 0x6D */ bool reset_prev_volume;
     };
     static_assert(sizeof(InParameter) == 0x70,
                   "SplitterDestinationData::InParameter has the wrong size!");
+
+    struct InParameterVersion2a {
+        /* 0x00 */ u32 magic;
+        /* 0x04 */ s32 id;
+        /* 0x08 */ std::array<f32, MaxMixBuffers> mix_volumes;
+        /* 0x68 */ u32 mix_id;
+        /* 0x6C */ std::array<BiquadFilterParameterLegacy, MaxBiquadFilters> biquad_filters;
+        /* 0x84 */ bool in_use;
+        /* 0x85 */ bool reset_prev_volume;
+        /* 0x86 */ u8 reserved[10];
+    };
+    static_assert(sizeof(InParameterVersion2a) == 0x90,
+                  "SplitterDestinationData::InParameterVersion2a has the wrong size!");
+
+    struct InParameterVersion2b {
+        /* 0x00 */ u32 magic;
+        /* 0x04 */ s32 id;
+        /* 0x08 */ std::array<f32, MaxMixBuffers> mix_volumes;
+        /* 0x68 */ u32 mix_id;
+        /* 0x6C */ std::array<BiquadFilterParameter2, MaxBiquadFilters> biquad_filters;
+        /* 0x9C */ bool in_use;
+        /* 0x9D */ bool reset_prev_volume;
+        /* 0x9E */ u8 reserved[10];
+    };
+    static_assert(sizeof(InParameterVersion2b) == 0xA8,
+                  "SplitterDestinationData::InParameterVersion2b has the wrong size!");
 
     SplitterDestinationData(s32 id);
 
@@ -89,7 +135,10 @@ public:
      *
      * @param params - Inpout parameters to update the destination.
      */
-    void Update(const InParameter& params);
+    void Update(const InParameter& params, bool explicit_prev_volume_reset = false);
+
+    std::span<BiquadFilterParameter2> GetBiquadFilters();
+    std::span<const BiquadFilterParameter2> GetBiquadFilters() const;
 
     /**
      * Mark this destination as needing its volumes updated.
@@ -124,6 +173,8 @@ private:
     std::array<f32, MaxMixBuffers> mix_volumes{0.0f};
     /// Previous mix volumes
     std::array<f32, MaxMixBuffers> prev_mix_volumes{0.0f};
+    /// REV12+ splitter biquad parameters, normalized to float coefficients
+    std::array<BiquadFilterParameter2, MaxBiquadFilters> biquad_filters{};
     /// Next destination in the mix chain
     SplitterDestinationData* next{};
     /// Is this destiantion in use?

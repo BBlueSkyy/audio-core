@@ -361,6 +361,11 @@ public:
      */
     bool IsI3dl2ReverbChannelMappingChanged() const;
 
+    bool IsSplitterPrevVolumeResetSupported() const;
+    bool IsBiquadFilterParameterForSplitterEnabled() const;
+    bool IsSplitterDestinationV2bSupported() const;
+    bool IsVoiceInParameterV2Supported() const;
+
     /// Host version
     u32 process_revision;
     /// User version

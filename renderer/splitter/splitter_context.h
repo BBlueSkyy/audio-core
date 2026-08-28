@@ -171,7 +171,7 @@ private:
      */
     void Setup(std::span<SplitterInfo> splitter_infos, u32 splitter_info_count,
                SplitterDestinationData* splitter_destinations, u32 destination_count,
-               bool splitter_bug_fixed);
+               bool splitter_bug_fixed, const BehaviorInfo& behavior);
 
     /// Workbuffer for splitters
     std::span<SplitterInfo> splitter_infos{};
@@ -183,6 +183,9 @@ private:
     s32 destinations_count{};
     /// Is the splitter bug fixed?
     bool splitter_bug_fixed{};
+    bool splitter_prev_volume_reset_supported{};
+    bool splitter_biquad_param_supported{};
+    bool splitter_float_coeff_supported{};
 };
 
 } // namespace AudioRenderer
