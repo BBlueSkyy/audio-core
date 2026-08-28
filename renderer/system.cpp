@@ -262,7 +262,20 @@ Result System::Initialize(const AudioRendererParameterInternal& params,
         return Service::Audio::ResultInsufficientBuffer;
     }
 
-    if (!splitter_context.Initialize(behavior, params, allocator)) {
+    std::span<VoiceState::BiquadFilterState> splitter_biquad_states{};
+    if (behavior.IsBiquadFilterParameterForSplitterEnabled() &&
+        params.splitter_destinations > 0) {
+        splitter_biquad_states = allocator.Allocate<VoiceState::BiquadFilterState>(
+            static_cast<size_t>(params.splitter_destinations) *
+                SplitterContext::BiquadStatesPerDestination,
+            0x10);
+        if (splitter_biquad_states.empty()) {
+            return Service::Audio::ResultInsufficientBuffer;
+        }
+        std::memset(splitter_biquad_states.data(), 0, splitter_biquad_states.size_bytes());
+    }
+
+    if (!splitter_context.Initialize(behavior, params, allocator, splitter_biquad_states)) {
         return Service::Audio::ResultInsufficientBuffer;
     }
 

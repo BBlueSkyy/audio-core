@@ -55,9 +55,10 @@ void SplitterContext::ClearAllNewConnectionFlag() {
     }
 }
 
-bool SplitterContext::Initialize(const BehaviorInfo& behavior,
-                                 const AudioRendererParameterInternal& params,
-                                 WorkbufferAllocator& allocator) {
+bool SplitterContext::Initialize(
+    const BehaviorInfo& behavior, const AudioRendererParameterInternal& params,
+    WorkbufferAllocator& allocator,
+    std::span<VoiceState::BiquadFilterState> splitter_biquad_states_) {
     if (behavior.IsSplitterSupported() && params.splitter_infos > 0 &&
         params.splitter_destinations > 0) {
         splitter_infos = allocator.Allocate<SplitterInfo>(params.splitter_infos, 0x10);
@@ -82,6 +83,17 @@ bool SplitterContext::Initialize(const BehaviorInfo& behavior,
             splitter_infos = {};
             splitter_destinations = nullptr;
             return false;
+        }
+
+        if (behavior.IsBiquadFilterParameterForSplitterEnabled()) {
+            const auto expected_states{
+                static_cast<size_t>(params.splitter_destinations) * BiquadStatesPerDestination};
+            if (splitter_biquad_states_.size() < expected_states) {
+                return false;
+            }
+            splitter_biquad_states = splitter_biquad_states_.first(expected_states);
+        } else {
+            splitter_biquad_states = {};
         }
 
         Setup(splitter_infos, params.splitter_infos, splitter_destinations,
@@ -123,7 +135,7 @@ u32 SplitterContext::UpdateInfo(const u8* input, u32 offset, const u32 splitter_
             continue;
         }
 
-        if (info_header->id < 0 || info_header->id > info_count) {
+        if (info_header->id < 0 || info_header->id >= info_count) {
             break;
         }
 
@@ -262,6 +274,20 @@ u32 SplitterContext::GetDestCountPerInfoForCompat() const {
     return static_cast<u32>(destinations_count / info_count);
 }
 
+std::span<VoiceState::BiquadFilterState>
+SplitterContext::GetBiquadFilterStates(const s32 destination_id) {
+    if (destination_id < 0 || splitter_biquad_states.empty()) {
+        return {};
+    }
+
+    const auto offset{static_cast<size_t>(destination_id) * BiquadStatesPerDestination};
+    if (offset + BiquadStatesPerDestination > splitter_biquad_states.size()) {
+        return {};
+    }
+
+    return splitter_biquad_states.subspan(offset, BiquadStatesPerDestination);
+}
+
 u64 SplitterContext::CalcWorkBufferSize(const BehaviorInfo& behavior,
                                         const AudioRendererParameterInternal& params) {
     u64 size{0};
@@ -275,6 +301,14 @@ u64 SplitterContext::CalcWorkBufferSize(const BehaviorInfo& behavior,
     if (behavior.IsSplitterBugFixed()) {
         size += Common::AlignUp(params.splitter_destinations * sizeof(u32), 0x10);
     }
+
+    if (behavior.IsBiquadFilterParameterForSplitterEnabled() &&
+        params.splitter_destinations > 0) {
+        size = Common::AlignUp(size, 0x10);
+        size += static_cast<u64>(params.splitter_destinations) *
+                BiquadStatesPerDestination * sizeof(VoiceState::BiquadFilterState);
+    }
+
     return size;
 }
 

@@ -7,6 +7,7 @@
 
 #include <audio_core/renderer/splitter/splitter_destinations_data.h>
 #include <audio_core/renderer/splitter/splitter_info.h>
+#include <audio_core/renderer/voice/voice_state.h>
 #include <audio_core/common/common_types.h>
 
 namespace AudioCore {
@@ -35,6 +36,8 @@ class SplitterContext {
                   "SplitterContext::InParameterHeader has the wrong size!");
 
 public:
+    static constexpr u32 BiquadStatesPerDestination = MaxBiquadFilters * 2;
+
     /**
      * Get a destination mix from the given splitter and destination index.
      *
@@ -93,8 +96,10 @@ public:
      * @param params    - Input parameters.
      * @param allocator - Allocator used to allocate workbuffer memory.
      */
-    bool Initialize(const BehaviorInfo& behavior, const AudioRendererParameterInternal& params,
-                    WorkbufferAllocator& allocator);
+    bool Initialize(
+        const BehaviorInfo& behavior, const AudioRendererParameterInternal& params,
+        WorkbufferAllocator& allocator,
+        std::span<VoiceState::BiquadFilterState> splitter_biquad_states = {});
 
     /**
      * Update the context.
@@ -149,6 +154,8 @@ public:
      */
     u32 GetDestCountPerInfoForCompat() const;
 
+    std::span<VoiceState::BiquadFilterState> GetBiquadFilterStates(s32 destination_id);
+
     /**
      * Calculate the size of the required workbuffer for splitters and destinations.
      *
@@ -186,6 +193,7 @@ private:
     bool splitter_prev_volume_reset_supported{};
     bool splitter_biquad_param_supported{};
     bool splitter_float_coeff_supported{};
+    std::span<VoiceState::BiquadFilterState> splitter_biquad_states{};
 };
 
 } // namespace AudioRenderer

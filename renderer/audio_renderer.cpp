@@ -27,14 +27,25 @@ Result Renderer::Initialize(const AudioRendererParameterInternal& params,
         system_registered = true;
     }
 
-    initialized = true;
-    system.Initialize(params, transfer_memory, transfer_memory_size, process_handle,
-                      applet_resource_user_id, session_id);
+    const auto result{system.Initialize(params, transfer_memory, transfer_memory_size,
+                                        process_handle, applet_resource_user_id, session_id)};
+    if (result.IsError()) {
+        if (system_registered) {
+            manager.RemoveSystem(system);
+            system_registered = false;
+        }
+        return result;
+    }
 
+    initialized = true;
     return ResultSuccess;
 }
 
 void Renderer::Finalize() {
+    if (!initialized) {
+        return;
+    }
+
     auto session_id{system.GetSessionId()};
 
     system.Finalize();
@@ -45,6 +56,7 @@ void Renderer::Finalize() {
     }
 
     manager.ReleaseSessionId(session_id);
+    initialized = false;
 }
 
 System& Renderer::GetSystem() {
