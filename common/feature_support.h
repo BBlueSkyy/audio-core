@@ -17,6 +17,7 @@ namespace AudioCore {
 constexpr u32 CurrentRevision = 15;
 
 enum class SupportTags {
+    CommandProcessingTimeEstimatorVersion5,
     CommandProcessingTimeEstimatorVersion4,
     CommandProcessingTimeEstimatorVersion3,
     CommandProcessingTimeEstimatorVersion2,
@@ -48,6 +49,7 @@ enum class SupportTags {
     CompressorStatistics,
     SplitterBiquadFilterParameter,
     SplitterPrevVolumeReset,
+    SplitterDepopBugFixEnabled,
     SplitterDestinationV2b,
     VoiceInParameterV2,
 
@@ -89,6 +91,7 @@ constexpr bool CheckFeatureSupported(SupportTags tag, u32 user_revision) {
             {SupportTags::CommandProcessingTimeEstimatorVersion3, 8},
             {SupportTags::EffectInfoVer2, 9},
             {SupportTags::CommandProcessingTimeEstimatorVersion4, 10},
+            {SupportTags::CommandProcessingTimeEstimatorVersion5, 11},
             {SupportTags::MultiTapBiquadFilterProcessing, 10},
             {SupportTags::DelayChannelMappingChange, 11},
             {SupportTags::ReverbChannelMappingChange, 11},
@@ -97,6 +100,7 @@ constexpr bool CheckFeatureSupported(SupportTags tag, u32 user_revision) {
             {SupportTags::DeviceApiVersion2, 13},
             {SupportTags::SplitterBiquadFilterParameter, 12},
             {SupportTags::SplitterPrevVolumeReset, 13},
+            {SupportTags::SplitterDepopBugFixEnabled, 14},
             {SupportTags::SplitterDestinationV2b, 15},
             {SupportTags::VoiceInParameterV2, 15},
         }};

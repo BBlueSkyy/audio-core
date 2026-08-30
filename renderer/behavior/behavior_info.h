@@ -362,6 +362,8 @@ public:
     bool IsI3dl2ReverbChannelMappingChanged() const;
 
     bool IsSplitterPrevVolumeResetSupported() const;
+
+    bool IsSplitterDepopBugFixEnabled() const;
     bool IsBiquadFilterParameterForSplitterEnabled() const;
     bool IsSplitterDestinationV2bSupported() const;
     bool IsVoiceInParameterV2Supported() const;

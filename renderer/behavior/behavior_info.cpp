@@ -107,7 +107,7 @@ bool BehaviorInfo::IsCommandProcessingTimeEstimatorVersion4Supported() const {
 }
 
 bool BehaviorInfo::IsCommandProcessingTimeEstimatorVersion5Supported() const {
-    return CheckFeatureSupported(SupportTags::CommandProcessingTimeEstimatorVersion4,
+    return CheckFeatureSupported(SupportTags::CommandProcessingTimeEstimatorVersion5,
                                  user_revision);
 }
 
@@ -194,6 +194,10 @@ bool BehaviorInfo::IsSplitterPrevVolumeResetSupported() const {
     return CheckFeatureSupported(SupportTags::SplitterPrevVolumeReset, user_revision);
 }
 
+
+bool BehaviorInfo::IsSplitterDepopBugFixEnabled() const {
+    return CheckFeatureSupported(SupportTags::SplitterDepopBugFixEnabled, user_revision);
+}
 bool BehaviorInfo::IsBiquadFilterParameterForSplitterEnabled() const {
     return CheckFeatureSupported(SupportTags::SplitterBiquadFilterParameter, user_revision);
 }
