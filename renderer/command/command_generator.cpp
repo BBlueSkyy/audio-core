@@ -143,6 +143,63 @@ void CommandGenerator::GenerateVoiceMixCommand(std::span<const f32> mix_volumes,
     }
 }
 
+void CommandGenerator::GenerateVoiceMixWithSplitterCommand(
+    SplitterDestinationData& destination, const VoiceState& voice_state, s16 output_index,
+    const s16 buffer_count, const s16 input_index, const s32 node_id) {
+    auto filters{destination.GetBiquadFilters()};
+    auto states{splitter_context.GetBiquadFilterStates(destination.GetId())};
+
+    u32 enabled_filter_count{};
+    for (u32 filter{}; filter < MaxBiquadFilters; filter++) {
+        enabled_filter_count += filters[filter].enabled ? 1U : 0U;
+        if (!filters[filter].enabled)
+            destination.SetBiquadInitialized(filter, false);
+    }
+
+    if (!render_context.behavior->IsBiquadFilterParameterForSplitterEnabled() ||
+        enabled_filter_count == 0 ||
+        states.size() < SplitterContext::BiquadStatesPerDestination) {
+        GenerateVoiceMixCommand(destination.GetMixVolume(), destination.GetMixVolumePrev(),
+                                voice_state, output_index, buffer_count, input_index, node_id);
+        return;
+    }
+
+    bool is_first_mix_buffer{true};
+    for (s16 i{}; i < buffer_count; i++, output_index++) {
+        const f32 volume0{destination.GetMixVolumePrev(i)};
+        const f32 volume1{destination.GetMixVolume(i)};
+        if (volume0 == 0.0f && volume1 == 0.0f)
+            continue;
+
+        CpuAddr last_sample{};
+        if (render_context.behavior->IsSplitterDepopBugFixEnabled()) {
+            last_sample = render_context.memory_pool_info->Translate(
+                CpuAddr(&voice_state.previous_samples[i]), sizeof(s32));
+        }
+
+        if (enabled_filter_count == MaxBiquadFilters) {
+            std::array<bool, MaxBiquadFilters> needs_init{};
+            for (u32 filter{}; filter < MaxBiquadFilters; filter++)
+                needs_init[filter] = !destination.IsBiquadInitialized(filter);
+
+            command_buffer.GenerateMultiTapBiquadFilterAndMixCommand(
+                node_id, input_index, output_index, filters, states, volume0, volume1, needs_init,
+                true, is_first_mix_buffer, last_sample);
+            destination.SetBiquadInitialized(0, true);
+            destination.SetBiquadInitialized(1, true);
+        } else {
+            const u32 filter_index{filters[0].enabled ? 0U : 1U};
+            command_buffer.GenerateBiquadFilterAndMixCommand(
+                node_id, input_index, output_index, filters[filter_index], states, filter_index,
+                volume0, volume1, !destination.IsBiquadInitialized(filter_index), true,
+                is_first_mix_buffer, last_sample);
+            destination.SetBiquadInitialized(filter_index, true);
+        }
+
+        is_first_mix_buffer = false;
+    }
+}
+
 void CommandGenerator::GenerateBiquadFilterCommandForVoice(VoiceInfo& voice_info,
                                                            const VoiceState& voice_state,
                                                            const s16 buffer_count, const s8 channel,
@@ -241,9 +298,9 @@ void CommandGenerator::GenerateVoiceCommand(VoiceInfo& voice_info) {
                         if (mix_id < mix_context.GetCount() &&
                             static_cast<s32>(mix_id) != UnusedSplitterId) {
                             auto mix_info{mix_context.GetInfo(mix_id)};
-                            GenerateVoiceMixCommand(
-                                destination->GetMixVolume(), destination->GetMixVolumePrev(),
-                                voice_state, mix_info->buffer_offset, mix_info->buffer_count,
+                            GenerateVoiceMixWithSplitterCommand(
+                                *destination, voice_state, mix_info->buffer_offset,
+                                mix_info->buffer_count,
                                 render_context.mix_buffer_count + channel, voice_info.node_id);
                             destination->MarkAsNeedToUpdateInternalState();
                         }
@@ -444,8 +501,14 @@ void CommandGenerator::GenerateCaptureCommand(const s16 buffer_offset, EffectInf
 }
 
 void CommandGenerator::GenerateCompressorCommand(const s16 buffer_offset,
-                                                 EffectInfoBase& effect_info, const s32 node_id) {
-    command_buffer.GenerateCompressorCommand(buffer_offset, effect_info, node_id);
+                                                 EffectInfoBase& effect_info, const s32 node_id,
+                                                 const u32 effect_index) {
+    const CompressorInfo::StatisticsInternal* statistics{};
+    if (render_context.behavior->IsCompressorStatisticsSupported()) {
+        statistics = reinterpret_cast<const CompressorInfo::StatisticsInternal*>(
+            &effect_context.GetDspSharedResultState(effect_index));
+    }
+    command_buffer.GenerateCompressorCommand(buffer_offset, effect_info, node_id, statistics);
 }
 
 void CommandGenerator::GenerateEffectCommand(MixInfo& mix_info) {
@@ -559,7 +622,8 @@ void CommandGenerator::GenerateEffectCommand(MixInfo& mix_info) {
         case EffectInfoBase::Type::Compressor: {
             DetailAspect capture_detail_aspect(*this, entry_type, mix_info.node_id,
                                                PerformanceDetailType::Unk13);
-            GenerateCompressorCommand(mix_info.buffer_offset, effect_info, mix_info.node_id);
+            GenerateCompressorCommand(mix_info.buffer_offset, effect_info, mix_info.node_id,
+                                      effect_index);
             if (capture_detail_aspect.initialized) {
                 command_buffer.GeneratePerformanceCommand(
                     capture_detail_aspect.node_id, PerformanceState::Stop,
@@ -575,6 +639,41 @@ void CommandGenerator::GenerateEffectCommand(MixInfo& mix_info) {
 
         effect_info.UpdateForCommandGeneration();
     }
+}
+
+void CommandGenerator::GenerateMixWithSplitterCommand(
+    const s16 input_index, const s16 output_index, const f32 volume,
+    SplitterDestinationData& destination, bool& is_first_mix_buffer, const s32 node_id) {
+    auto filters{destination.GetBiquadFilters()};
+    auto states{splitter_context.GetBiquadFilterStates(destination.GetId())};
+
+    u32 enabled_filter_count{};
+    for (u32 filter{}; filter < MaxBiquadFilters; filter++) {
+        enabled_filter_count += filters[filter].enabled ? 1U : 0U;
+        if (!filters[filter].enabled)
+            destination.SetBiquadInitialized(filter, false);
+    }
+
+    if (enabled_filter_count == MaxBiquadFilters) {
+        std::array<bool, MaxBiquadFilters> needs_init{};
+        for (u32 filter{}; filter < MaxBiquadFilters; filter++)
+            needs_init[filter] = !destination.IsBiquadInitialized(filter);
+
+        command_buffer.GenerateMultiTapBiquadFilterAndMixCommand(
+            node_id, input_index, output_index, filters, states, 0.0f, volume, needs_init, false,
+            is_first_mix_buffer);
+        destination.SetBiquadInitialized(0, true);
+        destination.SetBiquadInitialized(1, true);
+    } else {
+        const u32 filter_index{filters[0].enabled ? 0U : 1U};
+        command_buffer.GenerateBiquadFilterAndMixCommand(
+            node_id, input_index, output_index, filters[filter_index], states, filter_index, 0.0f,
+            volume, !destination.IsBiquadInitialized(filter_index), false,
+            is_first_mix_buffer);
+        destination.SetBiquadInitialized(filter_index, true);
+    }
+
+    is_first_mix_buffer = false;
 }
 
 void CommandGenerator::GenerateMixCommands(MixInfo& mix_info) {
@@ -615,13 +714,10 @@ void CommandGenerator::GenerateMixCommands(MixInfo& mix_info) {
                             states.size() >= SplitterContext::BiquadStatesPerDestination};
 
                         bool first_filtered_mix{true};
-                        bool emitted_filtered_mix{false};
 
                         for (s16 i = 0; i < splitter_mix_info->buffer_count; i++) {
                             const f32 volume{
                                 mix_info.volume * destination->GetMixVolume(i)};
-                            const f32 prev_volume{
-                                mix_info.volume * destination->GetMixVolumePrev(i)};
 
                             if (!filtered_splitter) {
                                 if (volume != 0.0f) {
@@ -633,44 +729,13 @@ void CommandGenerator::GenerateMixCommands(MixInfo& mix_info) {
                                 continue;
                             }
 
-                            if (volume == 0.0f && prev_volume == 0.0f)
+                            if (volume == 0.0f)
                                 continue;
 
-                            const bool has_ramp{volume != prev_volume};
-
-                            if (enabled_filter_count == MaxBiquadFilters) {
-                                std::array<bool, MaxBiquadFilters> needs_init{};
-                                for (u32 filter{}; filter < MaxBiquadFilters; filter++)
-                                    needs_init[filter] =
-                                        !destination->IsBiquadInitialized(filter);
-
-                                command_buffer.GenerateMultiTapBiquadFilterAndMixCommand(
-                                    mix_info.node_id, input_index,
-                                    static_cast<s16>(splitter_mix_info->buffer_offset + i),
-                                    filters, states, prev_volume, volume, needs_init,
-                                    has_ramp, first_filtered_mix);
-                            } else {
-                                const u32 filter_index{filters[0].enabled ? 0U : 1U};
-                                command_buffer.GenerateBiquadFilterAndMixCommand(
-                                    mix_info.node_id, input_index,
-                                    static_cast<s16>(splitter_mix_info->buffer_offset + i),
-                                    filters[filter_index], states, filter_index,
-                                    prev_volume, volume,
-                                    !destination->IsBiquadInitialized(filter_index),
-                                    has_ramp, first_filtered_mix);
-                            }
-
-                            first_filtered_mix = false;
-                            emitted_filtered_mix = true;
-                        }
-
-                        if (filtered_splitter) {
-                            for (u32 filter{}; filter < MaxBiquadFilters; filter++) {
-                                if (!filters[filter].enabled)
-                                    destination->SetBiquadInitialized(filter, false);
-                                else if (emitted_filtered_mix)
-                                    destination->SetBiquadInitialized(filter, true);
-                            }
+                            GenerateMixWithSplitterCommand(
+                                input_index,
+                                static_cast<s16>(splitter_mix_info->buffer_offset + i), volume,
+                                *destination, first_filtered_mix, mix_info.node_id);
                         }
                     }
                 }

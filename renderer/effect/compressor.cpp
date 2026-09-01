@@ -31,6 +31,22 @@ void CompressorInfo::UpdateForCommandGeneration() {
 
     auto params{reinterpret_cast<ParameterVersion1*>(parameter.data())};
     params->state = ParameterState::Updated;
+    params->statistics_reset_required = false;
+}
+
+void CompressorInfo::InitializeResultState(EffectResultState& result_state) {
+    auto* statistics{reinterpret_cast<StatisticsInternal*>(result_state.state.data())};
+    statistics->maximum_mean = 0.0f;
+    statistics->minimum_gain = 1.0f;
+    statistics->last_samples.fill(0.0f);
+}
+
+void CompressorInfo::UpdateResultState(EffectResultState& cpu_state,
+                                       EffectResultState& dsp_state) {
+    auto* cpu_statistics{reinterpret_cast<StatisticsInternal*>(cpu_state.state.data())};
+    const auto* dsp_statistics{
+        reinterpret_cast<const StatisticsInternal*>(dsp_state.state.data())};
+    *cpu_statistics = *dsp_statistics;
 }
 
 CpuAddr CompressorInfo::GetWorkbuffer(s32 index) {

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: MPL-2.0
 
+#include <algorithm>
 #include <cmath>
 #include <span>
 #include <vector>
@@ -45,8 +46,15 @@ static void InitializeCompressorEffect(const CompressorInfo::ParameterVersion2& 
 static void ApplyCompressorEffect(const CompressorInfo::ParameterVersion2& params,
                                   CompressorInfo::State& state, bool enabled,
                                   std::vector<std::span<const s32>> input_buffers,
-                                  std::vector<std::span<s32>> output_buffers, u32 sample_count) {
+                                  std::vector<std::span<s32>> output_buffers, u32 sample_count,
+                                  CompressorInfo::StatisticsInternal* statistics) {
     if (enabled) {
+        if (statistics && params.statistics_reset_required) {
+            statistics->maximum_mean = 0.0f;
+            statistics->minimum_gain = 1.0f;
+            statistics->last_samples.fill(0.0f);
+        }
+
         auto state_00{state.unk_00};
         auto state_04{state.unk_04};
         auto state_08{state.unk_08};
@@ -59,7 +67,8 @@ static void ApplyCompressorEffect(const CompressorInfo::ParameterVersion2& param
                 a += (input_sample * input_sample).to_float();
             }
 
-            state_00 += params.unk_24 * ((a / params.channel_count) - state.unk_00);
+            const auto mean{a / params.channel_count};
+            state_00 += params.unk_24 * (mean - state_00);
 
             auto b{-100.0f};
             auto c{0.0f};
@@ -93,6 +102,17 @@ static void ApplyCompressorEffect(const CompressorInfo::ParameterVersion2& param
             for (s16 channel = 0; channel < params.channel_count; channel++) {
                 output_buffers[channel][i] = static_cast<s32>(
                     static_cast<f32>(input_buffers[channel][i]) * state_08 * state.unk_20);
+            }
+
+            if (statistics) {
+                statistics->maximum_mean =
+                    std::max(statistics->maximum_mean, static_cast<f32>(mean));
+                statistics->minimum_gain =
+                    std::min(statistics->minimum_gain, state_08 * state.unk_20);
+                for (s16 channel = 0; channel < params.channel_count; channel++) {
+                    statistics->last_samples[channel] =
+                        std::abs(static_cast<f32>(input_buffers[channel][i]) / 32768.0f);
+                }
             }
         }
 
@@ -144,8 +164,9 @@ void CompressorCommand::Process(const ADSP::CommandListProcessor& processor) {
         }
     }
 
+    auto* statistics{reinterpret_cast<CompressorInfo::StatisticsInternal*>(result_state)};
     ApplyCompressorEffect(parameter, *state_, effect_enabled, input_buffers, output_buffers,
-                          processor.sample_count);
+                          processor.sample_count, statistics);
 }
 
 bool CompressorCommand::Verify(const ADSP::CommandListProcessor& processor) {

@@ -33,6 +33,8 @@ struct BiquadFilterAndMixCommand : ICommand {
     SplitterDestinationData::BiquadFilterParameter2 biquad{};
     CpuAddr state{};
     CpuAddr previous_state{};
+    /// REV14+ depop state for the destination mix buffer (voice path only).
+    CpuAddr last_sample{};
     f32 volume0{};
     f32 volume1{};
     bool needs_init{};
@@ -54,6 +56,8 @@ struct MultiTapBiquadFilterAndMixCommand : ICommand {
     std::array<SplitterDestinationData::BiquadFilterParameter2, MaxBiquadFilters> biquads{};
     std::array<CpuAddr, MaxBiquadFilters> states{};
     std::array<CpuAddr, MaxBiquadFilters> previous_states{};
+    /// REV14+ depop state for the destination mix buffer (voice path only).
+    CpuAddr last_sample{};
     f32 volume0{};
     f32 volume1{};
     std::array<bool, MaxBiquadFilters> needs_init{};

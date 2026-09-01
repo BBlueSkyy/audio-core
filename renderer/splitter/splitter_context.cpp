@@ -131,9 +131,8 @@ u32 SplitterContext::UpdateInfo(const u8* input, u32 offset, const u32 splitter_
     for (u32 i = 0; i < splitter_count; i++) {
         auto info_header{reinterpret_cast<const SplitterInfo::InParameter*>(input + offset)};
 
-        if (info_header->magic != GetSplitterInfoMagic()) {
-            continue;
-        }
+        if (info_header->magic != GetSplitterInfoMagic())
+            break;
 
         if (info_header->id < 0 || info_header->id >= info_count) {
             break;
@@ -155,8 +154,10 @@ u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
                 reinterpret_cast<const SplitterDestinationData::InParameter*>(input + offset)};
             const u32 stride{static_cast<u32>(sizeof(*data_header))};
 
-            if (data_header->magic == GetSplitterSendDataMagic() &&
-                data_header->id >= 0 && data_header->id < destinations_count) {
+            if (data_header->magic != GetSplitterSendDataMagic())
+                break;
+
+            if (data_header->id >= 0 && data_header->id < destinations_count) {
                 splitter_destinations[data_header->id].Update(
                     *data_header, splitter_prev_volume_reset_supported);
             }
@@ -170,8 +171,10 @@ u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
                     input + offset)};
             const u32 stride{static_cast<u32>(sizeof(*data_header))};
 
-            if (data_header->magic == GetSplitterSendDataMagic() &&
-                data_header->id >= 0 && data_header->id < destinations_count) {
+            if (data_header->magic != GetSplitterSendDataMagic())
+                break;
+
+            if (data_header->id >= 0 && data_header->id < destinations_count) {
                 SplitterDestinationData::InParameter common{};
                 common.magic = data_header->magic;
                 common.id = data_header->id;
@@ -207,8 +210,10 @@ u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
             reinterpret_cast<const SplitterDestinationData::InParameterVersion2b*>(input + offset)};
         const u32 stride{static_cast<u32>(sizeof(*data_header))};
 
-        if (data_header->magic == GetSplitterSendDataMagic() &&
-            data_header->id >= 0 && data_header->id < destinations_count) {
+        if (data_header->magic != GetSplitterSendDataMagic())
+            break;
+
+        if (data_header->id >= 0 && data_header->id < destinations_count) {
             SplitterDestinationData::InParameter common{};
             common.magic = data_header->magic;
             common.id = data_header->id;

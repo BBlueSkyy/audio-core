@@ -280,7 +280,7 @@ void CommandBuffer::GenerateBiquadFilterAndMixCommand(
     const SplitterDestinationData::BiquadFilterParameter2& biquad,
     std::span<VoiceState::BiquadFilterState> states, const u32 filter_index,
     const f32 volume0, const f32 volume1, const bool needs_init,
-    const bool has_volume_ramp, const bool is_first_mix_buffer) {
+    const bool has_volume_ramp, const bool is_first_mix_buffer, const CpuAddr last_sample) {
     if (filter_index >= MaxBiquadFilters ||
         states.size() < SplitterContext::BiquadStatesPerDestination)
         return;
@@ -296,6 +296,7 @@ void CommandBuffer::GenerateBiquadFilterAndMixCommand(
         CpuAddr(&states[state_index]), sizeof(VoiceState::BiquadFilterState));
     cmd.previous_state = memory_pool->Translate(
         CpuAddr(&states[state_index + 1]), sizeof(VoiceState::BiquadFilterState));
+    cmd.last_sample = last_sample;
     cmd.volume0 = volume0;
     cmd.volume1 = volume1;
     cmd.needs_init = needs_init;
@@ -311,7 +312,7 @@ void CommandBuffer::GenerateMultiTapBiquadFilterAndMixCommand(
     std::span<VoiceState::BiquadFilterState> states,
     const f32 volume0, const f32 volume1,
     const std::array<bool, MaxBiquadFilters> needs_init,
-    const bool has_volume_ramp, const bool is_first_mix_buffer) {
+    const bool has_volume_ramp, const bool is_first_mix_buffer, const CpuAddr last_sample) {
     if (biquads.size() < MaxBiquadFilters ||
         states.size() < SplitterContext::BiquadStatesPerDestination)
         return;
@@ -326,6 +327,7 @@ void CommandBuffer::GenerateMultiTapBiquadFilterAndMixCommand(
     cmd.needs_init = needs_init;
     cmd.has_volume_ramp = has_volume_ramp;
     cmd.is_first_mix_buffer = is_first_mix_buffer;
+    cmd.last_sample = last_sample;
 
     for (u32 filter{}; filter < MaxBiquadFilters; filter++) {
         const size_t state_index{static_cast<size_t>(filter) * 2};
@@ -764,7 +766,8 @@ void CommandBuffer::GenerateCaptureCommand(const s32 node_id, EffectInfoBase& ef
 }
 
 void CommandBuffer::GenerateCompressorCommand(s16 buffer_offset, EffectInfoBase& effect_info,
-                                              s32 node_id) {
+                                              s32 node_id,
+                                              const CompressorInfo::StatisticsInternal* statistics) {
     auto& cmd{GenerateStart<CompressorCommand, CommandId::Compressor>(node_id)};
 
     auto& parameter{
@@ -779,8 +782,15 @@ void CommandBuffer::GenerateCompressorCommand(s16 buffer_offset, EffectInfoBase&
                 cmd.outputs[channel] = buffer_offset + parameter.outputs[channel];
             }
             cmd.parameter = parameter;
-            cmd.workbuffer = state_buffer;
-            cmd.enabled = effect_info.IsEnabled();
+            cmd.state = state_buffer;
+            cmd.workbuffer = effect_info.GetWorkbuffer(-1);
+            cmd.effect_enabled = effect_info.IsEnabled();
+            if (statistics && parameter.statistics_enabled) {
+                cmd.result_state = memory_pool->Translate(
+                    CpuAddr(statistics), sizeof(CompressorInfo::StatisticsInternal));
+            } else {
+                cmd.result_state = 0;
+            }
         }
     }
 

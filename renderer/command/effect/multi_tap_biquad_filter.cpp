@@ -25,8 +25,7 @@ void MultiTapBiquadFilterCommand::Process(const ADSP::CommandListProcessor& proc
     auto output_buffer{
         processor.mix_buffers.subspan(output * processor.sample_count, processor.sample_count)};
 
-    // TODO: Fix this, currently just applies the filter to the input twice,
-    // and doesn't chain the biquads together at all.
+    std::span<const s32> filter_input{input_buffer};
     for (u32 i = 0; i < filter_tap_count; i++) {
         auto state{reinterpret_cast<VoiceState::BiquadFilterState*>(states[i])};
         if (needs_init[i]) {
@@ -34,13 +33,14 @@ void MultiTapBiquadFilterCommand::Process(const ADSP::CommandListProcessor& proc
         }
 
         if (use_float_coefficients) {
-            ApplyBiquadFilterFloat2(output_buffer, input_buffer, biquads_float[i].numerator,
+            ApplyBiquadFilterFloat2(output_buffer, filter_input, biquads_float[i].numerator,
                                     biquads_float[i].denominator, *state,
                                     processor.sample_count);
         } else {
-            ApplyBiquadFilterFloat(output_buffer, input_buffer, biquads[i].b, biquads[i].a,
+            ApplyBiquadFilterFloat(output_buffer, filter_input, biquads[i].b, biquads[i].a,
                                    *state, processor.sample_count);
         }
+        filter_input = output_buffer;
     }
 }
 

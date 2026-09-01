@@ -256,6 +256,8 @@ public:
     u32 Estimate(const MultiTapBiquadFilterCommand& command) const override;
     u32 Estimate(const CaptureCommand& command) const override;
     u32 Estimate(const CompressorCommand& command) const override;
+    u32 Estimate(const BiquadFilterAndMixCommand& command) const override;
+    u32 Estimate(const MultiTapBiquadFilterAndMixCommand& command) const override;
 
 private:
     u32 sample_count{};

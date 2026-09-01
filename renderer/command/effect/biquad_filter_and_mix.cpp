@@ -106,13 +106,17 @@ void BiquadFilterAndMixCommand::Process(const ADSP::CommandListProcessor& proces
                   static_cast<f64>(processor.sample_count)
             : 0.0};
     f64 volume{has_volume_ramp ? static_cast<f64>(volume0) : static_cast<f64>(volume1)};
+    f64 last_mixed_sample{};
 
     for (u32 i{}; i < processor.sample_count; i++) {
         const f64 filtered{ProcessSample(biquad, runtime, static_cast<f64>(input_buffer[i]))};
-        output_buffer[i] =
-            ClampSample(static_cast<f64>(output_buffer[i]) + filtered * volume);
+        last_mixed_sample = filtered * volume;
+        output_buffer[i] = ClampSample(static_cast<f64>(output_buffer[i]) + last_mixed_sample);
         volume += step;
     }
+
+    if (has_volume_ramp && last_sample)
+        *reinterpret_cast<s32*>(last_sample) = ClampSample(last_mixed_sample);
 
     StoreState(*current, runtime);
 }
@@ -152,16 +156,20 @@ void MultiTapBiquadFilterAndMixCommand::Process(const ADSP::CommandListProcessor
                   static_cast<f64>(processor.sample_count)
             : 0.0};
     f64 volume{has_volume_ramp ? static_cast<f64>(volume0) : static_cast<f64>(volume1)};
+    f64 last_mixed_sample{};
 
     for (u32 i{}; i < processor.sample_count; i++) {
         f64 sample{static_cast<f64>(input_buffer[i])};
         for (u32 filter{}; filter < MaxBiquadFilters; filter++)
             sample = ProcessSample(biquads[filter], runtime[filter], sample);
 
-        output_buffer[i] =
-            ClampSample(static_cast<f64>(output_buffer[i]) + sample * volume);
+        last_mixed_sample = sample * volume;
+        output_buffer[i] = ClampSample(static_cast<f64>(output_buffer[i]) + last_mixed_sample);
         volume += step;
     }
+
+    if (has_volume_ramp && last_sample)
+        *reinterpret_cast<s32*>(last_sample) = ClampSample(last_mixed_sample);
 
     for (u32 filter{}; filter < MaxBiquadFilters; filter++)
         StoreState(*current[filter], runtime[filter]);

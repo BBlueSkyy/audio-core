@@ -3523,7 +3523,7 @@ u32 CommandProcessingTimeEstimatorVersion5::Estimate(const CaptureCommand& comma
 }
 
 u32 CommandProcessingTimeEstimatorVersion5::Estimate(const CompressorCommand& command) const {
-    if (command.enabled) {
+    if (command.effect_enabled) {
         switch (command.parameter.channel_count) {
         case 1:
             switch (sample_count) {
@@ -3613,6 +3613,32 @@ u32 CommandProcessingTimeEstimatorVersion5::Estimate(const CompressorCommand& co
         }
     default:
         LOG_ERROR(Service_Audio, "Invalid channel count {}", command.parameter.channel_count);
+        return 0;
+    }
+}
+
+u32 CommandProcessingTimeEstimatorVersion5::Estimate(
+    const BiquadFilterAndMixCommand& command) const {
+    switch (sample_count) {
+    case 160:
+        return command.has_volume_ramp ? 5204 : 3427;
+    case 240:
+        return command.has_volume_ramp ? 6683 : 4752;
+    default:
+        LOG_ERROR(Service_Audio, "Invalid sample count {}", sample_count);
+        return 0;
+    }
+}
+
+u32 CommandProcessingTimeEstimatorVersion5::Estimate(
+    const MultiTapBiquadFilterAndMixCommand& command) const {
+    switch (sample_count) {
+    case 160:
+        return command.has_volume_ramp ? 7939 : 6256;
+    case 240:
+        return command.has_volume_ramp ? 10669 : 8683;
+    default:
+        LOG_ERROR(Service_Audio, "Invalid sample count {}", sample_count);
         return 0;
     }
 }

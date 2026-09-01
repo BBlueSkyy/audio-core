@@ -190,6 +190,10 @@ bool BehaviorInfo::IsI3dl2ReverbChannelMappingChanged() const {
     return CheckFeatureSupported(SupportTags::I3dl2ReverbChannelMappingChange, user_revision);
 }
 
+bool BehaviorInfo::IsCompressorStatisticsSupported() const {
+    return CheckFeatureSupported(SupportTags::CompressorStatistics, user_revision);
+}
+
 bool BehaviorInfo::IsSplitterPrevVolumeResetSupported() const {
     return CheckFeatureSupported(SupportTags::SplitterPrevVolumeReset, user_revision);
 }

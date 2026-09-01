@@ -26,6 +26,7 @@ class VoiceInfo;
 struct VoiceState;
 class MixInfo;
 class SinkInfoBase;
+class SplitterDestinationData;
 
 /**
  * Generates all commands to build up a command list, which are sent to the AudioRender for
@@ -145,6 +146,13 @@ public:
                                  s16 input_index, s32 node_id);
 
     /**
+     * Generate REV12+ filtered voice-to-splitter mix commands.
+     */
+    void GenerateVoiceMixWithSplitterCommand(SplitterDestinationData& destination,
+                                               const VoiceState& voice_state, s16 output_index,
+                                               s16 buffer_count, s16 input_index, s32 node_id);
+
+    /**
      * Generate a biquad filter command for a voice.
      *
      * @param voice_info   - Voice info this command is generated from.
@@ -256,7 +264,8 @@ public:
      * @param effect_info   - Compressor effect info.
      * @param node_id       - Node id of the mix this command is generated for.
      */
-    void GenerateCompressorCommand(s16 buffer_offset, EffectInfoBase& effect_info, s32 node_id);
+    void GenerateCompressorCommand(s16 buffer_offset, EffectInfoBase& effect_info, s32 node_id,
+                                   u32 effect_index);
 
     /**
      * Generate all effect commands for a mix.
@@ -271,6 +280,13 @@ public:
      * @param mix_info - Mix to generate effects from.
      */
     void GenerateMixCommands(MixInfo& mix_info);
+
+    /**
+     * Generate one REV12+ filtered submix-to-splitter mix command.
+     */
+    void GenerateMixWithSplitterCommand(s16 input_index, s16 output_index, f32 volume,
+                                        SplitterDestinationData& destination,
+                                        bool& is_first_mix_buffer, s32 node_id);
 
     /**
      * Generate a submix command.

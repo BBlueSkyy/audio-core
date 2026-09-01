@@ -361,6 +361,9 @@ public:
      */
     bool IsI3dl2ReverbChannelMappingChanged() const;
 
+    /** Check if REV13+ compressor statistics are supported. */
+    bool IsCompressorStatisticsSupported() const;
+
     bool IsSplitterPrevVolumeResetSupported() const;
 
     bool IsSplitterDepopBugFixEnabled() const;

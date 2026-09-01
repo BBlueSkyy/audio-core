@@ -169,7 +169,7 @@ public:
         const SplitterDestinationData::BiquadFilterParameter2& biquad,
         std::span<VoiceState::BiquadFilterState> states, u32 filter_index,
         f32 volume0, f32 volume1, bool needs_init, bool has_volume_ramp,
-        bool is_first_mix_buffer);
+        bool is_first_mix_buffer, CpuAddr last_sample = 0);
 
     void GenerateMultiTapBiquadFilterAndMixCommand(
         s32 node_id, s16 input_index, s16 output_index,
@@ -177,7 +177,7 @@ public:
         std::span<VoiceState::BiquadFilterState> states,
         f32 volume0, f32 volume1,
         std::array<bool, MaxBiquadFilters> needs_init, bool has_volume_ramp,
-        bool is_first_mix_buffer);
+        bool is_first_mix_buffer, CpuAddr last_sample = 0);
 
     /**
      * Generate a mix command, adding it to the command list.
@@ -452,7 +452,9 @@ public:
      * @param effect_info   - Capture effect info to generate this command from.
      * @param node_id       - Node id of the voice this command is generated for.
      */
-    void GenerateCompressorCommand(s16 buffer_offset, EffectInfoBase& effect_info, s32 node_id);
+    void GenerateCompressorCommand(
+        s16 buffer_offset, EffectInfoBase& effect_info, s32 node_id,
+        const CompressorInfo::StatisticsInternal* statistics = nullptr);
 
     /// Command list buffer generated commands will be added to
     std::span<u8> command_list{};
