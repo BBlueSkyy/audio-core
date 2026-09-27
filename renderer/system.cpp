@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <chrono>
+#include <cstring>
 #include <span>
 
 #include <audio_core/audio_core.h>
@@ -127,8 +128,9 @@ Result System::Initialize(const AudioRendererParameterInternal& params,
     render_device = params.rendering_device;
     execution_mode = params.execution_mode;
 
-    core.Memory().ZeroBlock(*core.ApplicationProcess(), transfer_memory->GetSourceAddress(),
-                            transfer_memory_size);
+    // This transfer memory is owned by audio-core, so its address is already a host pointer.
+    std::memset(reinterpret_cast<void*>(transfer_memory->GetSourceAddress()), 0,
+                transfer_memory_size);
 
     // Note: We're not actually using the transfer memory because it's a pain to code for.
     // Allocate the memory normally instead and hope the game doesn't try to read anything back
