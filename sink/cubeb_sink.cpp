@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: MPL-2.0
 
+#include <algorithm>
+#include <atomic>
 #include <span>
 #include <vector>
 
@@ -16,6 +18,13 @@
 #endif
 
 namespace AudioCore::Sink {
+namespace {
+std::atomic<u32> audio_out_stream_ordinal{};
+
+bool TraceAudioOutPcm(u32 ordinal) {
+    return ordinal < 3 || ordinal == 255 || ordinal == 1023 || ordinal == 4095;
+}
+} // namespace
 /**
  * Cubeb sink stream, responsible for sinking samples to hardware.
  */
@@ -42,6 +51,10 @@ public:
         CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 #endif
         name = name_;
+        if (type_ == StreamType::Out) {
+            trace_pcm_ordinal = audio_out_stream_ordinal.fetch_add(1, std::memory_order_relaxed);
+            trace_pcm = TraceAudioOutPcm(trace_pcm_ordinal);
+        }
         device_channels = device_channels_;
         system_channels = system_channels_;
 
@@ -106,6 +119,10 @@ public:
         }
 
         Finalize();
+        if (trace_pcm) {
+            LOG_INFO(Service_Audio, "AudioOut PCM backend summary: ordinal {} name {} callbacks {} nonzero_samples {}",
+                     trace_pcm_ordinal, name, trace_pcm_callbacks, trace_pcm_nonzero_samples);
+        }
 
 #ifdef _WIN32
         CoUninitialize();
@@ -181,6 +198,19 @@ private:
         } else {
             std::span<s16> output_buffer{reinterpret_cast<s16*>(out_buff), num_frames * frame_size};
             impl->ProcessAudioOutAndRender(output_buffer, num_frames);
+            if (impl->trace_pcm) {
+                const auto nonzero = std::count_if(output_buffer.begin(), output_buffer.end(), [](s16 value) {
+                    return value != 0;
+                });
+                impl->trace_pcm_nonzero_samples += nonzero;
+                if (impl->trace_pcm_callbacks < 4 || (nonzero != 0 && !impl->trace_pcm_saw_nonzero)) {
+                    LOG_INFO(Service_Audio, "AudioOut PCM backend: ordinal {} name {} callback {} samples {} nonzero {}",
+                             impl->trace_pcm_ordinal, impl->name, impl->trace_pcm_callbacks,
+                             output_buffer.size(), nonzero);
+                }
+                impl->trace_pcm_saw_nonzero |= nonzero != 0;
+                impl->trace_pcm_callbacks++;
+            }
         }
 
         return num_frames_;
@@ -199,6 +229,11 @@ private:
     cubeb* ctx{};
     /// Cubeb stream backend
     cubeb_stream* stream_backend{};
+    bool trace_pcm{};
+    u32 trace_pcm_ordinal{};
+    u32 trace_pcm_callbacks{};
+    u64 trace_pcm_nonzero_samples{};
+    bool trace_pcm_saw_nonzero{};
 };
 
 CubebSink::CubebSink(std::string_view target_device_name) {

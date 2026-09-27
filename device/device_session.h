@@ -146,6 +146,12 @@ private:
     std::shared_ptr<Core::Timing::EventType> thread_event;
     /// Is this session initialised?
     bool initialized{};
+    /// Bounded diagnostics for whether AudioOut receives non-silent guest PCM.
+    bool trace_pcm{};
+    u32 trace_pcm_ordinal{};
+    mutable std::atomic<u32> trace_pcm_buffers{};
+    mutable std::atomic<u32> trace_pcm_nonzero_buffers{};
+    std::atomic<bool> trace_pcm_summary_logged{};
     /// Buffer queue
     std::vector<AudioBuffer> buffer_queue{};
 };

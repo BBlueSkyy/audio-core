@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: MPL-2.0
 
+#include <algorithm>
 #include <audio_core/audio_core.h>
 #include <audio_core/audio_manager.h>
 #include <audio_core/device/audio_buffer.h>
 #include <audio_core/device/device_session.h>
 #include <audio_core/sink/sink_stream.h>
+#include <audio_core/common/logging/log.h>
 #include <core/core.h>
 #include <core/core_timing.h>
 #include <core/memory.h>
@@ -14,6 +16,14 @@ namespace AudioCore {
 
 using namespace std::literals;
 constexpr auto INCREMENT_TIME{5ms};
+
+namespace {
+std::atomic<u32> audio_out_session_ordinal{};
+
+bool TraceAudioOutPcm(u32 ordinal) {
+    return ordinal < 3 || ordinal == 255 || ordinal == 1023 || ordinal == 4095;
+}
+} // namespace
 
 DeviceSession::DeviceSession(Core::System& system_)
     : system{system_}, thread_event{Core::Timing::CreateEvent(
@@ -34,6 +44,10 @@ Result DeviceSession::Initialize(std::string_view name_, SampleFormat sample_for
     }
     name = fmt::format("{}-{}", name_, session_id_);
     type = type_;
+    if (type == Sink::StreamType::Out) {
+        trace_pcm_ordinal = audio_out_session_ordinal.fetch_add(1, std::memory_order_relaxed);
+        trace_pcm = TraceAudioOutPcm(trace_pcm_ordinal);
+    }
     sample_format = sample_format_;
     channel_count = channel_count_;
     session_id = session_id_;
@@ -70,6 +84,11 @@ void DeviceSession::Stop() {
     if (stream) {
         stream->Stop();
         system.CoreTiming().UnscheduleEvent(thread_event, {});
+        if (trace_pcm && !trace_pcm_summary_logged.exchange(true, std::memory_order_relaxed)) {
+            LOG_INFO(Service_Audio, "AudioOut PCM submit summary: ordinal {} name {} buffers {} nonzero_buffers {}",
+                     trace_pcm_ordinal, name, trace_pcm_buffers.load(std::memory_order_relaxed),
+                     trace_pcm_nonzero_buffers.load(std::memory_order_relaxed));
+        }
     }
 }
 
@@ -94,6 +113,19 @@ void DeviceSession::AppendBuffers(std::span<const AudioBuffer> buffers) const {
         } else {
             std::vector<s16> samples(buffer.size / sizeof(s16));
             system.Memory().ReadBlockUnsafe(buffer.samples, samples.data(), buffer.size);
+            if (trace_pcm) {
+                const auto buffer_number = trace_pcm_buffers.fetch_add(1, std::memory_order_relaxed);
+                const auto nonzero = std::count_if(samples.begin(), samples.end(), [](s16 value) {
+                    return value != 0;
+                });
+                const auto nonzero_number = nonzero != 0
+                    ? trace_pcm_nonzero_buffers.fetch_add(1, std::memory_order_relaxed)
+                    : 0;
+                if (buffer_number < 4 || (nonzero != 0 && nonzero_number == 0)) {
+                    LOG_INFO(Service_Audio, "AudioOut PCM submit: ordinal {} name {} buffer {} tag {:#x} samples {} nonzero {}",
+                             trace_pcm_ordinal, name, buffer_number, buffer.tag, samples.size(), nonzero);
+                }
+            }
             stream->AppendBuffer(new_buffer, samples);
         }
     }
