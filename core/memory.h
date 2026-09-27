@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <cstring>
 #include <audio_core/common/common_types.h>
 #include "hle/kernel/k_process.h"
 
@@ -13,9 +15,16 @@ constexpr u64 YUZU_PAGEMASK = YUZU_PAGESIZE - 1;
 
 /// Central class that handles all memory operations and state.
 class Memory {
+    std::uintptr_t guest_address_offset{};
+
 public:
+    // Set after the guest VMM is initialized and before audio sessions start.
+    void SetGuestAddressOffset(std::uintptr_t offset) {
+        guest_address_offset = offset;
+    }
+
     u8* GetPointer(VAddr vaddr) {
-        return reinterpret_cast<u8*>(vaddr);
+        return reinterpret_cast<u8*>(vaddr + guest_address_offset);
     }
 
     template <typename T>
@@ -24,7 +33,7 @@ public:
     }
 
     const u8* GetPointer(VAddr vaddr) const {
-        return reinterpret_cast<const u8*>(vaddr);
+        return reinterpret_cast<const u8*>(vaddr + guest_address_offset);
     }
 
     template <typename T>
